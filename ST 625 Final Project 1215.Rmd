@@ -1,0 +1,160 @@
+---
+title: "Final_Project"
+author: "Prince Wang"
+date: "12/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Group D Final Project
+## Include data description(each variables meaning etc.) and what we are trying to do. We removed all 0 values and negative values for income since it is simply not reasonable to have 0 or negative values in income. 
+```{r, message = FALSE}
+library(alr4)
+```
+
+## First Look and plotting the data
+```{r, include = FALSE}
+path_csv2 <- "~/Desktop/Workinghours.csv"
+wh <- read.csv(file = path_csv2, header = TRUE, row.names = 1)
+```
+
+```{r}
+head(wh)
+summary(wh)
+plot(~ hours + income + age + education + child5 + child13 + child17 + unemp, data = wh)
+
+```
+
+
+
+
+
+
+
+
+
+## From the summary of our data set, we can first get a sense of different predictors and response. We set the "working hours" as response and identified seven numerical predictors and four categorical predictors. In terms of the numerical ones, they are husband's income, wife's age, wife's education years, and three numerical predictor related to the number of children in different age group, 0-5 years old, 6-13 years old and 14-17 years old. As for the categorical predictor, we have "0" representing white wife and "1" representing nonwhite wife. "Occupation" to classify the husband's job and "Owned" and "Mortgage" to describe their housing condition.
+
+## From the plot graph we can easily find that working hours have some relationship with husband's income and are heavily affected by the number of children,especially younger children. We'll get into more details later by quantifying our data and building up our regression model.
+
+## Building an intial model using all variables, check the residuals, transform and check on which variable can be removed.
+
+```{r}
+fit1 <-lm(hours ~ income + age + education + child5 + child13 + child17 + unemp + nonwhite + owned + mortgage + occupation, data = wh)
+residualPlots(fit1, tests =  FALSE)
+qqPlot(fit1)
+```
+
+## From the residual plot,we can find that these predictors seem all useful to our model because the lines are pretty flat when the predictors are within normal range. For example, in the income residual plot, the line is flat when income is not very large. This means for the majority of families, the husband earns more, the wife will have less working hours. Only a few data we collected have very large income and they affect our residual plot very much, but we don't need to focus on that minority too much. Same logic to unemployment rate predictor, when the unemployment rate is very high, it will affect our residual plot very much, but when it's within normal range, we found the line is pretty flat, which means our model is not violating any assumptions. In terms of the children factor, age and education factor, the lines are flat enough.
+
+
+# The residuals look good so we can move on and build our initial model with all variables
+```{r}
+lm0 <-lm(hours ~ income + age + education + child5 + child13 + child17 + unemp + nonwhite + owned + mortgage + occupation, data = wh)
+summary(lm0)
+
+# Firstly, we want to transform the predictors, and since the predictors are not strictly positive, we use yj method 
+summary(powerTransform(cbind(income, age, education, unemp, child5, child13, child17) ~ 1, data = wh, family = "yjPower"))
+# since there is 0s in child5, child13, child17, we cannot use the powertransformation of negative number.
+##I added 1 to each of the predictors, based on the formula of Yeo-Johnson
+lm1 <- lm(hours ~ I((income)^(0.22))+ I((age)^(-0.33)) + I((education)^1.43) + nonwhite + I(unemp^0.09) + mortgage + occupation+child5+child13+child17, data = wh)
+summary(lm0)
+
+summary(lm1)
+# Since after the transformation, the R-squared goes lower, we decided not to take the transformation for the predictors
+
+# Because there is 0 hour for women working hour, we cannot applyed the Box-Cox method, we used YJ instead. 
+
+p1 <- powerTransform(hours ~ income + age + education + child5 + child13 + child17 + unemp + nonwhite + owned + mortgage + occupation, data = wh, family = "yjPower")
+summary(p1)
+lm2 <- lm(I(hours^0.33) ~ income + age + education + child5 + child13 + child17 + unemp + nonwhite + owned + mortgage + occupation, data = wh)
+summary(lm0)
+summary(lm2)
+
+
+# since the R-squared goes up by almost 0.01, we decided to use the powertransformation on the response
+
+
+Anova(lm2)
+# Based on F values and P value, we can accept the NH for child17, owned and occupation. 
+
+lm3 <- lm(I(hours^0.33) ~ income + age + education + child5 + child13 + unemp + nonwhite + mortgage, data = wh)
+summary(lm3)
+Anova(lm3)
+residualPlots(lm3)
+qqPlot(lm3)
+# the F-test suggests all predictors can reject so the next step is to apply transformation
+```
+
+```{r}
+#  effect plots
+wh$nonwhite.factor <- factor(wh$nonwhite)
+wh$mortgage.factor <- factor(wh$mortgage)
+l0 <- lm(I(hours^0.33) ~ nonwhite.factor+mortgage.factor, data = wh)
+l1 <- lm(I(hours^0.33) ~ child5+child13+child17, data = wh)
+l2 <- lm(I(hours^0.33) ~ income+age+education+unemp, data = wh)
+plot(allEffects(l0))
+plot(allEffects(l1))
+plot(allEffects(l2))
+
+l3 <- lm(I(hours^0.33) ~ nonwhite.factor*income,data=wh)
+plot(allEffects(l3))
+
+
+```
+
+
+
+
+
+
+## We did effect plots here because we want to classify the main effect and interations on the response. First, we plot the two categorical factors, which is nonwhite and mortgage. Generally speaking, nonwhite has longer working hours than white. For families who have mortgage, the wife will work much longer than no mortgage family. These foundings do emphasize people's color and housing situation have influence on the wife's working hours.
+
+## Same logic to the children age factor, we found children number has signicant effect on the wife's working hours, especially children below 13 years old. More young children a family has, the less working hours of the wilfe. This finding makes us notice the working wife's situation and the low fertility problem in the current society. 
+
+## The most interesting finding is from plot l3, we are curious about the nonwhite and income interation to the response. As is shown in the plot graph, nonwhite and white have opposite react to higher income. For nonwhite wife, the higher their husband earn, the longer working hours they have, but for white wife, they will work shorter time if their husbands have a high income. Are there any phychological reasons behind it? 
+
+
+## Segment data into model part and test part and applied the model. Since we want to test how our model works, we simply segment the data into two parts, 80% for model buidling and 20% for testing. 
+
+
+```{r}
+
+nrow(wh)*0.8
+data1 <- wh[c(1:2690),]
+data2 <- wh[c(2691:3363),]
+
+lm4 <- lm(I(hours^0.33) ~ income + age + education + child5 + child13 + nonwhite + unemp + mortgage, data = data1)
+summary(lm4)
+
+y <- data2[,"hours"]
+y1 <- y^0.33
+y1.bar <- mean(y1)
+y.hat <- predict(lm4, data2)
+
+e.hat <- y1 - y.hat
+n <- nrow(data2)
+df <- n - 9
+RSS <- sum(e.hat^2)
+RSquared <- 1 - RSS/sum((y1-y1.bar)^2)
+print(RSquared)
+
+```
+
+## We applied our model to predit the working hours of wife given specific predictors and got R squared 22%, which means our model can inteprete 22% of reason behind the working hours of wife. 
+
+## Discovering active predictors using AIC
+
+```{r}
+lm5 <- lm(I(hours^0.33) ~ income, data = wh)
+m.forward <- step(lm5, scope = list(lower = I(hours^0.33) ~ income, upper = I(hours^0.33) ~ income + age + education + child5 + child13 + nonwhite + unemp + mortgage ), direction = "forward", k = 2, trace = 1)
+m.back <- step(lm3, scope = list(lower = I(hours^0.33) ~ income, upper = I(hours^0.33) ~ income + age + education + child5 + child13 + nonwhite + unemp + mortgage ), direction = "backward", k = 2, trace = 1)
+summary(m.back)
+summary(m.forward)
+
+
+# it seems that all the variables are actively associated with the response. 
+```
